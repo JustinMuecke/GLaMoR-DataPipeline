@@ -20,13 +20,25 @@ if response.status_code == 200:
 else:
     print(f"Error: {response.status_code}")
 
-#for i in tqdm(range(0, len(ontologies))):
-for i in tqdm(range(0, 3)):
-    response = requests.get(ontology["links"]["download"], params={'apikey': api_key, "download_format" : "rdf"})
+print(len(ontologies))
+
+downloaded_ontologies = [i.replace(".owl", "") for i in os.listdir(output_path)]
+print(downloaded_ontologies)
+indicies = []
+
+
+
+
+unable_to_download : int = 0
+for i in tqdm(range(0, len(ontologies))):
+#for i in tqdm(range(0, 3)):
+    if ontologies[i]["acronym"] in downloaded_ontologies: 
+        continue
+    response = requests.get(ontologies[i]["links"]["download"], params={'apikey': api_key, "download_format" : "rdf"})
     if response.status_code == 200:
     # Save the OWL content to a file
         with open(output_path / f"{ontologies[i]['acronym']}.owl", "wb") as file:
             file.write(response.content)
-        print(f"Ontology content saved as {ontologies[i]['acronym']}.owl")
     else:
-        print(f"Couldn't Download ontology {ontologies[i]['acronym']}")
+        unable_to_download += 1
+print(f"Could not download {unable_to_download} ontologies.")
