@@ -7,11 +7,7 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
+
 
 public class Main {
     public static void main(String[] args) throws OWLOntologyCreationException, IOException {
@@ -19,9 +15,6 @@ public class Main {
         ((ch.qos.logback.classic.Logger) logger).setLevel(ch.qos.logback.classic.Level.ERROR);
 
         File[] dir = new File("../data/ontologies/").listFiles();
-        List<Integer> classes = new LinkedList<>();
-        List<Integer> properties = new LinkedList<>();
-        List<OWLOntology> ontologies = new LinkedList<>();
         BufferedWriter class_writer = new BufferedWriter(new FileWriter("C:\\Users\\Doo5i\\git\\GLaMoR\\Analysis\\src\\main\\output\\classes"));
         BufferedWriter property_writer = new BufferedWriter(new FileWriter("C:\\Users\\Doo5i\\git\\GLaMoR\\Analysis\\src\\main\\output\\properties"));
 
