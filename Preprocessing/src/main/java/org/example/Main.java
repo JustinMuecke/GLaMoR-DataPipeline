@@ -30,6 +30,8 @@ public class Main {
         return ontology;
     }
 
+
+
     public static void main(String[] args) throws OWLOntologyStorageException {
         System.out.println("Hello world!");
         File[] dir = new File("../data/ont_modules/").listFiles();
