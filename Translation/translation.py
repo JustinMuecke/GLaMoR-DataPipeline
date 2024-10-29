@@ -5,13 +5,13 @@ from pathlib import Path
 
 
 
-def translate_to_tripels(file) -> List[List[str]]:
-
-    lines : List[str] = file.readlines()
-    lines = _concatinate_and_revome(lines)
-    triples = _translate_to_triples(lines)
-    triples = _clean_triples(triples)
-    return triples
+def translate_to_tripels(path) -> List[List[str]]:
+     with open(path, "r") as file:   
+        lines : List[str] = file.readlines()
+        lines = _concatinate_and_revome(lines)
+        triples = _translate_to_triples(lines)
+        triples = _clean_triples(triples)
+        return triples
 
     
 
@@ -21,18 +21,17 @@ def _concatinate_and_revome(lines : List[str]) -> List[str]:
     removes any occurance of a "Prefix:xxx" definition, and if two consecutive lines are logically connected by and, 
     merges them into one line
     """
-    remove = []
+    result = []
     for i in range(0,len(lines)):
         lines[i] = lines[i].strip().replace("\n", "")
-        if "and " in lines[i]:
-            lines[i-1] = lines[i-1] + " " + lines[i]
-            remove.append(i)
         if "Prefix:" in lines[i]:
-            remove.append(i)
-
-    for index in remove: 
-        lines.pop(index)
-    return lines
+            continue
+        if i > 0 and "and " in lines[i]:
+            result[-1] = result[-1] + " " + lines[i]
+            continue
+        result.append(lines[i])
+    
+    return result
 
 def _translate_to_triples(lines : List[str]) -> List[str]:
     """
@@ -40,6 +39,7 @@ def _translate_to_triples(lines : List[str]) -> List[str]:
     Always checks the next two lines. If both lines are empty, the next Object starts in the file. 
     If only one line is empty, the following line starts a new property of the Object.
     """
+    triples : List[List[str]] = []
     line = lines[0]
     for i in range(1, len(lines)):
 
@@ -70,28 +70,41 @@ def _translate_to_triples(lines : List[str]) -> List[str]:
             sub = line.strip()        
         line = lines[i].replace("\n", "").strip()
         triples.append([obj, relation, sub])
-        return triples
+    return triples
 
 def _clean_triples(triples : List[List[str]]) -> List[List[str]]:
     """ 
     Given a list of triples, if a triple contains the relation "Facts", the actual relation is part of the subject. 
     E.g.  ["Person1", "Facts", "hasParent Person2"] -> ["Person1" "hasParent", "Person2"]
     """
-    for i in range(len(triples)):
+    for i in range(len(triples)-1, -1, -1):
         [sub, relation, obj] = triples[i]
         if(relation == "Facts"):
-            tuple = obj.split("  ")
-            relation = tuple[0]
-            obj = tuple[1]
-        triples[i] = [sub, relation, obj]
+            try:
+                obj_parts = obj.split("  ")
+                new_relation = obj_parts[0]
+                new_obj = obj_parts[1]
+            except: 
+                print([sub, relation, obj])
+                print(relation)
+                raise IndexError("BOOOOB")
+            triples[i] = [sub, new_relation, new_obj]
+        if(relation == "DisjointWith"):
+            if("," in obj):
+                disjoints = obj.split(",")
+                for disjoint in disjoints:
+                    triples.insert(i+1, [sub, relation, disjoint.lstrip(" ")])
+                triples.pop(i)
     return triples
 
 
 if __name__ == "__main__":
-    input_path = Path(__file__).parent.parent / "data" / "ont_modules"
-
-    ##For file in inputpath: translate_to_triples
-
-    #triples : List[List[str]] = translate_to_tripels(input_path)
-    #with open("data.jsonl", "w") as output: 
-    #    json.dump(triples, output)
+    input_path = Path(__file__).parent.parent / "data" / "prefixless_modules"
+    for path in (input_path.rglob("*")):
+        try:
+            triples : List[List[str]] = translate_to_tripels(path)
+        except:
+            print(path.name)
+            continue
+        with open("data/triples/"+path.name, "w") as output: 
+            json.dump(triples, output)
