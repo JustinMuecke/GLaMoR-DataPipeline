@@ -34,7 +34,7 @@ public class Main {
                         .anyMatch(entity -> entity.getIRI().getNamespace().equals(skosIRI.toString())))
                 .forEach(axiom -> manager.removeAxiom(ontology, axiom));
     }
-
+    
     private static Optional<Set<String>> findBaseIRI(OWLOntology ontology, OWLOntologyManager manager){
         Set<OWLEntity> entities = ontology.getSignature();
         Set<String> baseIRIs = new HashSet<>();
@@ -55,6 +55,7 @@ public class Main {
         }
         return Optional.of(baseIRIs);
     }
+
 
 
     public static void main(String[] args) throws OWLOntologyStorageException {

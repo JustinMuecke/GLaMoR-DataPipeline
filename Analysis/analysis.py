@@ -28,5 +28,8 @@ for frame in [classes, properties]:
     x = [i for i in range(max(frame)+1)]
     
     plot = sns.lineplot(values)
+    
     print(plot)
     plot.figure.savefig("stat.pdf")
+
+
