@@ -1,0 +1,144 @@
+services:
+  rabbitmq:
+    image: "rabbitmq:3-management"
+    environment:
+      RABBITMQ_DEFAULT_USER: rabbitmq_user
+      RABBITMQ_DEFAULT_PASS: rabbitmq_password
+    ports:
+      - "5672:5672"    # RabbitMQ main port
+      - "15672:15672"  # RabbitMQ management UI
+
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: pgadmin_password
+    ports:
+      - "8080:80"
+    
+
+  postgres:
+    image: postgres:latest
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: postgres_user
+      POSTGRES_PASSWORD: postgress_password
+      POSTGRES_DB: data_processing
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql 
+
+  start:
+    build: ./initial_publish
+    environment:
+      - RABBITMQ_QUEUE_OUTPUT=Ontologies
+      - RABBITMQ_HOST=rabbitmq
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=postgres_user
+      - POSTGRES_PASSWORD=postgress_password
+      - POSTGRES_DB=data_processing
+    volumes:
+      - ./data/ontologies:/input
+    depends_on:
+      - rabbitmq
+      - postgres
+      - modularization
+
+  modularization:
+    build: ./OAPT
+    deploy:
+      replicas: 1
+    environment:
+      - RABBITMQ_QUEUE_INPUT=Ontologies
+      - RABBITMQ_QUEUE_OUTPUT=Modules_Preprocess
+
+      - RABBITMQ_HOST=rabbitmq
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=postgres_user
+      - POSTGRES_PASSWORD=postgress_password
+      - POSTGRES_DB=data_processing
+    volumes:
+      - ./data/ontologies:/input
+      - ./data/ont_modules:/app/output
+    depends_on:
+      - rabbitmq
+      - postgres
+
+  modification:
+    build: ./OWL_Ontology_Modification/Modification
+    deploy:
+      replicas: 3
+    environment:
+      - RABBITMQ_QUEUE_INPUT=Modules_Modify
+      - RABBITMQ_QUEUE_OUTPUT=Modules_Preprocess
+
+      - RABBITMQ_HOST=rabbitmq
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=postgres_user
+      - POSTGRES_PASSWORD=postgress_password
+      - POSTGRES_DB=data_processing
+    volumes:
+      - ./data/ont_modules:/input
+      - ./data/ont_modules:/output
+    depends_on:
+      - rabbitmq
+      - postgres
+      - modularization
+
+  preprocess:
+    build: ./Preprocessing
+    environment:
+      - RABBITMQ_QUEUE_INPUT=Modules_Preprocess
+      - RABBITMQ_QUEUE_OUTPUT=Remove_Prefix
+
+      - RABBITMQ_HOST=rabbitmq
+      - POSTGRES_HOST=postgres
+      - POSTGRES_USER=postgres_user
+      - POSTGRES_PASSWORD=postgress_password
+      - POSTGRES_DB=data_processing
+    volumes:
+      - ./data/ont_modules:/input
+      - ./data/processed_modules:/output
+    depends_on:
+      - rabbitmq
+      - postgres
+      - modularization
+      - modification
+
+  prefix_removal:
+    build: ./prefix_removal
+    environment:
+      - RABBITMQ_QUEUE_INPUT=Remove_Prefix
+      - RABBITMQ_QUEUE_OUTPUT=Translation
+    volumes:
+      - ./data/processed_modules:/input
+      - ./data/prefixless_modules:/output
+    depends_on:
+      - rabbitmq
+      - postgres
+      - preprocess
+
+  translation:
+    build: ./translation
+    environment:
+      - RABBITMQ_QUEUE_INPUT=Translation
+      - RABBITMQ_QUEUE_OUTPUT=filtering      
+    volumes:
+      - ./data/prefixless_modules:/input
+      - ./data/triples:/output
+  
+  filtering: 
+    build: ./Tokenization
+    environment:
+      - RABBITMQ_QUEUE_INPUT=filtering
+      - RABBITMQ_QUEUE_OUTPUT=Modules_Modify      
+    volumes:
+      - ./data/triples:/input
+      - ./data/filtered_modules:/output
+
+volumes:
+  pg_data:

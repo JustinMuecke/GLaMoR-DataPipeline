@@ -8,7 +8,7 @@ load_dotenv()
 api_key = os.getenv("BioPortal_API")
 base_url = "https://data.bioontology.org/ontologies"
 output_path = Path(__file__).parent.parent / "data" / "ontologies"
-
+print(api_key)
 # Make a GET request to retrieve all ontologies
 response = requests.get(base_url, params={'apikey': api_key})
 
@@ -20,7 +20,6 @@ if response.status_code == 200:
 else:
     print(f"Error: {response.status_code}")
 
-print(len(ontologies))
 
 downloaded_ontologies = [i.replace(".owl", "") for i in os.listdir(output_path)]
 print(downloaded_ontologies)
@@ -30,7 +29,7 @@ indicies = []
 
 
 unable_to_download : int = 0
-for i in tqdm(range(0, len(ontologies))):
+for i in tqdm(range(0, 10)):
 #for i in tqdm(range(0, 3)):
     if ontologies[i]["acronym"] in downloaded_ontologies: 
         continue

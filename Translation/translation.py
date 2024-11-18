@@ -2,17 +2,73 @@ import yaml
 import json
 from typing import List
 from pathlib import Path
+import os
+import pika
+import time
+import psycopg2
+import traceback
 
+rabbitmq_host ="rabbitmq"
+queue_input = "translation"
+queue_output = "filtering"
 
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "postgres")
+POSTGRES_DB = os.getenv("POSTGRES_DB", "data_processing")
+POSTGRES_USER = os.getenv("POSTGRES_USER", "postgres_user")
+POSTGRES_PASSWORD = os.getenv("POSTGRES_PASSWORD", "postgress_password")
+
+print("Connecting to database...")
+cursor = None
+while cursor is None:
+    try:
+        # Connect to PostgreSQL
+        db_connection = psycopg2.connect(
+            host=POSTGRES_HOST,
+            database=POSTGRES_DB,
+            user=POSTGRES_USER,
+            password=POSTGRES_PASSWORD
+        )
+        cursor = db_connection.cursor()
+    except Exception as e:
+        print(f"Error connecting to PostgreSQL: {e}")
+        print("Retrying in 5 seconds...")
+        time.sleep(5)
+
+# Ensure the necessary table exists in PostgreSQL
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS collection_status (
+        id SERIAL PRIMARY KEY,
+        file_name VARCHAR(255),
+        status VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+""")
+db_connection.commit()
+cursor.execute("""
+    CREATE TABLE IF NOT EXISTS data_filter (
+        id SERIAL PRIMARY KEY,
+        file_name VARCHAR(255),
+        status VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+""")
+db_connection.commit()
+print("Connected to Database successfully")
 
 def translate_to_tripels(path) -> List[List[str]]:
-     with open(path, "r") as file:   
-        lines : List[str] = file.readlines()
-        lines = _concatinate_and_revome(lines)
-        triples = _translate_to_triples(lines)
-        triples = _clean_triples(triples)
-        return triples
-
+    try:
+        with open("/input/" + path, "r") as file:   
+            lines : List[str] = file.readlines()
+            lines = _concatinate_and_revome(lines)
+            triples = _translate_to_triples(lines)
+            triples = _clean_triples(triples)
+        output_name = path.split(".")[0] + ".jsonl"
+        with open("/output/"+ output_name, "w") as output: 
+                json.dump(triples, output)
+        return output_name
+    except:
+        traceback.print_exc()
+        return ""
     
 
 def _concatinate_and_revome(lines : List[str]) -> List[str]:
@@ -97,14 +153,65 @@ def _clean_triples(triples : List[List[str]]) -> List[List[str]]:
                 triples.pop(i)
     return triples
 
+        
+
+def on_message(channel, method, properties, body):
+    try:
+        file_name = body.decode()
+        if(file_name in os.listdir("/output/")):
+            cursor.execute("UPDATE translation SET status =%s WHERE file_name=%s", ("Done", file_name))
+            db_connection.commit()
+            channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
+        else:
+            cursor.execute("INSERT INTO data_filter (file_name, status) VALUES (%s, %s)", (file_name.split(".")[0] + ".jsonl", "Waiting"))
+            db_connection.commit() 
+            cursor.execute("UPDATE translation SET status =%s WHERE file_name=%s", ("Processing", file_name))
+            db_connection.commit() 
+
+            output_name = translate_to_tripels(file_name)
+            # Publish the processed message to the output queue
+            if queue_output and output_name:
+                channel.basic_publish(exchange="", routing_key=queue_output, body=output_name)
+                print(f"Sent processed message to {queue_output}: {file_name}")
+
+            cursor.execute("UPDATE translation SET status =%s WHERE file_name=%s", ("Done", file_name))
+            db_connection.commit()  
+
+        # Acknowledge the message to RabbitMQ
+        channel.basic_ack(delivery_tag=method.delivery_tag)
+    except:
+        traceback.print_exc()
+
+
+
+
+def start_worker():
+    """ Main worker function to consume messages """
+    connection = None
+    channel = None
+
+    # Retry loop until RabbitMQ is available
+    while connection is None:
+        try:
+            print("Attempting to connect to RabbitMQ...")
+            credentials = pika.PlainCredentials("rabbitmq_user", "rabbitmq_password")
+
+            connection = pika.BlockingConnection(pika.ConnectionParameters(host=rabbitmq_host, credentials=credentials))
+            channel = connection.channel()
+
+            # Declare the input queue to ensure it exists
+            channel.queue_declare(queue=queue_input, durable=True)
+            channel.queue_declare(queue=queue_output, durable=True)
+
+            # Start consuming messages
+            channel.basic_consume(queue=queue_input, on_message_callback=on_message)
+            print(f"Waiting for messages in {queue_input}. To exit press CTRL+C")
+            channel.start_consuming()
+
+        except Exception as e:
+            print(f"Connection failed: {e}. Retrying in 5 seconds...")
+            time.sleep(5)  # Wait 5 seconds before retrying
+    
 
 if __name__ == "__main__":
-    input_path = Path(__file__).parent.parent / "data" / "prefixless_modules"
-    for path in (input_path.rglob("*")):
-        try:
-            triples : List[List[str]] = translate_to_tripels(path)
-        except:
-            print(path.name)
-            continue
-        with open("data/triples/"+path.name, "w") as output: 
-            json.dump(triples, output)
+    start_worker()
