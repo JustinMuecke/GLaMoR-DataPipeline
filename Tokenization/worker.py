@@ -68,7 +68,7 @@ def get_consistency(cursor, file_name):
         print(f"Error checking consistency: {e}")
         raise
 
-def process_message(channel, cursor, db_connection, body):
+def process_message(channel, cursor, db_connection, body, method):
     file_name = body.decode()
     try:
         if file_name in os.listdir("/output/"):
@@ -106,7 +106,7 @@ def process_message(channel, cursor, db_connection, body):
 
 def on_message(channel, method, properties, body):
     try:
-        process_message(channel, cursor, db_connection, body)
+        process_message(channel, cursor, db_connection, body, method)
     except Exception as e:
         print(f"Unhandled error in on_message: {e}")
         traceback.print_exc()

@@ -161,6 +161,8 @@ def on_message(channel, method, properties, body):
         if(file_name in os.listdir("/output/")):
             cursor.execute("UPDATE translation SET status =%s WHERE file_name=%s", ("Done", file_name))
             db_connection.commit()
+            cursor.execute("INSERT INTO data_filter (file_name, status) VALUES (%s, %s)", (file_name.split(".")[0] + ".jsonl", "Waiting"))
+            db_connection.commit()
             channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
         else:
             cursor.execute("INSERT INTO data_filter (file_name, status) VALUES (%s, %s)", (file_name.split(".")[0] + ".jsonl", "Waiting"))

@@ -82,16 +82,14 @@ def _remove_prefixes(file_name):
 
 def on_message(channel, method, properties, body):
     file_name = body.decode()
+    print(f"Processing {file_name}")
     if(file_name not in os.listdir("/output/")):
         cursor.execute("UPDATE prefix_removal SET status =%s WHERE file_name=%s", ("Processing", file_name))
-        db_connection.commit() 
-        channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
+        db_connection.commit()
         if(_remove_prefixes(file_name)):
         # Publish the processed message to the output queue
-            if queue_output:
-                channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
-                print(f"Sent processed message to {queue_output}: {file_name}")
-
+            channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
+            print(f"Sent processed message to {queue_output}: {file_name}")
             print(f"Updating Database: {file_name} - Done")
             # Insert into PostgreSQL table
             cursor.execute("UPDATE prefix_removal SET status =%s WHERE file_name=%s", ("Done", file_name))
@@ -102,7 +100,12 @@ def on_message(channel, method, properties, body):
         else: 
             cursor.execute("UPDATE prefix_removal SET status =%s, error_message=%s WHERE file_name=%s", ("Coudlt Remove Prefixes","Failed", file_name))
             db_connection.commit()
-
+    else:
+        cursor.execute("INSERT INTO translation (file_name, status) VALUES (%s, %s)", (file_name, "Waiting")
+        db_connection.commit()
+        channel.basic_publish(exchange="", rounting_key=queue_output, body=file_name)
+        cursor.execute("UPDATE prefix_removal SET status=%s WHERE file_name=%s", ("Done", file_name))
+        db_connection.commit()
     # Acknowledge the message to RabbitMQ
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
