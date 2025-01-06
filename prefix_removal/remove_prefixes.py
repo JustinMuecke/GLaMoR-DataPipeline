@@ -66,6 +66,7 @@ def _remove_prefixes(file_name):
                 modified_lines = []
                 prefixes : List[str] = _find_prefixes(lines)
                 for line in lines: 
+                    if("Prefix:") in line: continue
                     for prefix in prefixes:
                         line = line.replace(prefix, "")
                     modified_lines.append(line)
@@ -82,16 +83,15 @@ def _remove_prefixes(file_name):
 
 def on_message(channel, method, properties, body):
     file_name = body.decode()
+    print(f"Processing {file_name}")
     if(file_name not in os.listdir("/output/")):
         cursor.execute("UPDATE prefix_removal SET status =%s WHERE file_name=%s", ("Processing", file_name))
         db_connection.commit() 
         channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
         if(_remove_prefixes(file_name)):
         # Publish the processed message to the output queue
-            if queue_output:
-                channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
-                print(f"Sent processed message to {queue_output}: {file_name}")
-
+            channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
+            print(f"Sent processed message to {queue_output}: {file_name}")
             print(f"Updating Database: {file_name} - Done")
             # Insert into PostgreSQL table
             cursor.execute("UPDATE prefix_removal SET status =%s WHERE file_name=%s", ("Done", file_name))
