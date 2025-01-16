@@ -52,14 +52,15 @@ def _find_prefixes(lines: List[str]):
     prefixes = []
     for line in lines: 
         if "Prefix: " in line: 
-            prefix = line.split(":")[1].lstrip(" ")+":"
-            prefixes.append(prefix)
-    prefixes.remove(":")
+            prefix = line.split(":")[1].lstrip(" ")
+            print(prefix)
+            if prefix != ":" and prefix != "": 
+                prefixes.append(prefix)
     return prefixes
 
 def _remove_prefixes(file_name):
     try:
-        with open("/input/" +file_name, "r", encoding="utf8") as file:
+        with open("data/processed_modules/" +file_name, "r", encoding="utf8") as file:
             try:
                 print(f"Removing Prefixes from {file_name}")
                 lines = file.readlines()
@@ -68,10 +69,12 @@ def _remove_prefixes(file_name):
                 for line in lines: 
                     if("Prefix:") in line: continue
                     for prefix in prefixes:
+                        line = line.replace(prefix+":", "")
                         line = line.replace(prefix, "")
+                        line = line.replace ("<http://" ,"")
+                        line = line.replace (">", "")
                     modified_lines.append(line)
-                
-                with open("/output/" + file_name, "w") as output:
+                with open("data/prefixless_modules/" + file_name, "w") as output:
                     output.writelines(modified_lines)
                 return True
             except Exception as e:

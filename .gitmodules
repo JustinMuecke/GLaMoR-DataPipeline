@@ -1,6 +1,3 @@
-[submodule "GraphLanguageModels"]
-	path = GraphLanguageModels
-	url = https://github.com/JustinMuecke/GraphLanguageModels.git
 [submodule "OAPT"]
 	path = OAPT
 	url = https://github.com/JustinMuecke/OAPT.git

@@ -151,6 +151,9 @@ def _clean_triples(triples : List[List[str]]) -> List[List[str]]:
                 for disjoint in disjoints:
                     triples.insert(i+1, [sub, relation, disjoint.lstrip(" ")])
                 triples.pop(i)
+        if("comment" in sub or "comment" in relation or "comment" in obj):
+            triples.pop(i)
+        
     return triples
 
         
