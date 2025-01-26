@@ -143,7 +143,6 @@ def _clean_triples(triples : List[List[str]]) -> List[List[str]]:
             except: 
                 print([sub, relation, obj])
                 print(relation)
-                raise IndexError("BOOOOB")
             triples[i] = [sub, new_relation, new_obj]
         if(relation == "DisjointWith"):
             if("," in obj):
@@ -151,6 +150,9 @@ def _clean_triples(triples : List[List[str]]) -> List[List[str]]:
                 for disjoint in disjoints:
                     triples.insert(i+1, [sub, relation, disjoint.lstrip(" ")])
                 triples.pop(i)
+        if("comment" in sub or "comment" in relation or "comment" in obj):
+            triples.pop(i)
+        
     return triples
 
         
@@ -160,8 +162,6 @@ def on_message(channel, method, properties, body):
         file_name = body.decode()
         if(file_name in os.listdir("/output/")):
             cursor.execute("UPDATE translation SET status =%s WHERE file_name=%s", ("Done", file_name))
-            db_connection.commit()
-            cursor.execute("INSERT INTO data_filter (file_name, status) VALUES (%s, %s)", (file_name.split(".")[0] + ".jsonl", "Waiting"))
             db_connection.commit()
             channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
         else:

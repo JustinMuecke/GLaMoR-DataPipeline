@@ -1,39 +1,31 @@
 services:
   rabbitmq:
-    image: "rabbitmq:3-management"
+    image: "rabbitmq:latest"
+    restart: unless-stopped
     environment:
       RABBITMQ_DEFAULT_USER: rabbitmq_user
       RABBITMQ_DEFAULT_PASS: rabbitmq_password
-    ports:
-      - "5672:5672"    # RabbitMQ main port
-      - "15672:15672"  # RabbitMQ management UI
-
-
-  pgadmin:
-    image: dpage/pgadmin4
-    container_name: pgadmin
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@example.com
-      PGADMIN_DEFAULT_PASSWORD: pgadmin_password
-    ports:
-      - "8080:80"
-    
-
+    volumes:
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+    networks:
+      - rabbitmq_network
+     
   postgres:
     image: postgres:latest
-    container_name: postgres_db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres_user
       POSTGRES_PASSWORD: postgress_password
       POSTGRES_DB: data_processing
-    ports:
-      - "5433:5433"
     volumes:
       - pg_data:/var/lib/postgresql/data
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql 
+    networks:
+      - postgres_network
 
   start:
     build: ./initial_publish
+    container_name: initial_publish
     environment:
       - RABBITMQ_QUEUE_OUTPUT=Ontologies
       - RABBITMQ_HOST=rabbitmq
@@ -42,59 +34,75 @@ services:
       - POSTGRES_PASSWORD=postgress_password
       - POSTGRES_DB=data_processing
     volumes:
-      - ./data/ontologies:/input
+#      - ./data/triples:/input
+      - ./data/ont_modules/:/input500
+#      - ./data/filtered_modules/consistent/1000:/input1000
+#      - ./data/filtered_modules/consistent/4000:/input4000
+#      - ./data/ont_modules:/output
     depends_on:
       - rabbitmq
       - postgres
-      - modularization
+    networks:
+      - rabbitmq_network
+      - postgres_network
 
-  modularization:
-    build: ./OAPT
-    deploy:
-      replicas: 5
-    environment:
-      - RABBITMQ_QUEUE_INPUT=Ontologies
-      - RABBITMQ_QUEUE_OUTPUT=Modules_Preprocess
 
-      - RABBITMQ_HOST=rabbitmq
-      - POSTGRES_HOST=postgres
-      - POSTGRES_USER=postgres_user
-      - POSTGRES_PASSWORD=postgress_password
-      - POSTGRES_DB=data_processing
-    volumes:
-      - ./data/ontologies:/input
-      - ./data/ont_modules:/app/output
-    depends_on:
-      - rabbitmq
-      - postgres
+#  modularization:
+#    build: ./OAPT
+#    restart: unless-stopped
+#    deploy:
+#      replicas: 2
+#    environment:
+#      - RABBITMQ_QUEUE_INPUT=Ontologies
+#      - RABBITMQ_QUEUE_OUTPUT=Modules_Preprocess
+#      - RABBITMQ_HOST=rabbitmq
+#      - POSTGRES_HOST=postgres
+#      - POSTGRES_USER=postgres_user
+#      - POSTGRES_PASSWORD=postgress_password
+#      - POSTGRES_DB=data_processing
+#    volumes:
+#      - ./data/ontologies:/input
+#      - ./data/ont_modules:/app/output
+#    depends_on:
+#      - rabbitmq
+#      - postgres
+#    networks:
+#      - rabbitmq_network
+#      - postgres_network
 
-  modification:
-    build: ./OWL_Ontology_Modification/Modification
-    deploy:
-      replicas: 3
-    environment:
-      - RABBITMQ_QUEUE_INPUT=Modules_Modify
-      - RABBITMQ_QUEUE_OUTPUT=Modules_Preprocess
 
-      - RABBITMQ_HOST=rabbitmq
-      - POSTGRES_HOST=postgres
-      - POSTGRES_USER=postgres_user
-      - POSTGRES_PASSWORD=postgress_password
-      - POSTGRES_DB=data_processing
-    volumes:
-      - ./data/ont_modules:/input
-      - ./data/ont_modules:/output
-    depends_on:
-      - rabbitmq
-      - postgres
-      - modularization
-
+#  modification:
+#    build: ./OWL_Ontology_Modification/Modification
+#    restart: unless-stopped
+#    deploy:
+#      replicas: 10
+#    environment:
+#      - RABBITMQ_QUEUE_INPUT=Modules_Modify
+#      - RABBITMQ_QUEUE_OUTPUT=Modules_Preprocess
+#      - RABBITMQ_HOST=rabbitmq
+#      - POSTGRES_HOST=postgres
+#      - POSTGRES_USER=postgres_user
+#      - POSTGRES_PASSWORD=postgress_password
+#      - POSTGRES_DB=data_processing
+#    volumes:
+#      - ./data/ont_modules:/input
+#      - ./data/ont_modules_inconsistent:/output
+#    depends_on:
+#      - rabbitmq
+#      - postgres
+#    networks:
+#      - rabbitmq_network
+#      - postgres_network
+#
+#
   preprocess:
     build: ./Preprocessing
+    restart: unless-stopped
+    deploy:
+      replicas: 2
     environment:
       - RABBITMQ_QUEUE_INPUT=Modules_Preprocess
-      - RABBITMQ_QUEUE_OUTPUT=Remove_Prefix
-
+      - RABBITMQ_QUEUE_OUTPUT=Remove_Prefix#
       - RABBITMQ_HOST=rabbitmq
       - POSTGRES_HOST=postgres
       - POSTGRES_USER=postgres_user
@@ -106,11 +114,13 @@ services:
     depends_on:
       - rabbitmq
       - postgres
-      - modularization
-      - modification
+    networks:
+      - rabbitmq_network
+      - postgres_network
 
   prefix_removal:
     build: ./prefix_removal
+    restart: unless-stopped
     environment:
       - RABBITMQ_QUEUE_INPUT=Remove_Prefix
       - RABBITMQ_QUEUE_OUTPUT=Translation
@@ -120,25 +130,49 @@ services:
     depends_on:
       - rabbitmq
       - postgres
-      - preprocess
+    networks:
+      - rabbitmq_network
+      - postgres_network
 
   translation:
     build: ./Translation
+    restart: unless-stopped
     environment:
       - RABBITMQ_QUEUE_INPUT=Translation
       - RABBITMQ_QUEUE_OUTPUT=filtering      
     volumes:
       - ./data/prefixless_modules:/input
       - ./data/triples:/output
+    networks:
+      - rabbitmq_network
+      - postgres_network
   
-  filtering: 
-    build: ./Tokenization
-    environment:
-      - RABBITMQ_QUEUE_INPUT=filtering
-      - RABBITMQ_QUEUE_OUTPUT=Modules_Modify      
-    volumes:
-      - ./data/triples:/input
-      - ./data/filtered_modules:/output
-
+#  filtering: 
+#    build: ./Tokenization
+#    restart: unless-stopped
+#    deploy:
+#      replicas: 6
+#    environment:
+#      - RABBITMQ_QUEUE_INPUT=filtering
+#      - RABBITMQ_QUEUE_OUTPUT=Modules_Modify      
+#    volumes:
+#      - ./data/triples:/input
+#      - ./data/filtered_modules/consistent/500:/output500
+#      - ./data/filtered_modules/consistent/1000:/output1000
+#      - ./data/filtered_modules/consistent/4000:/output4000
+#      - ./data/filtered_modules/inconsistent/500:/output500InC
+#      - ./data/filtered_modules/inconsistent/1000:/output1000InC
+#      - ./data/filtered_modules/inconsistent/4000:/output4000InC
+#      - ./data/filtered_modules/overThreshold:/output10000
+#      - ./data/filtered_modules/overThreshold:/output10000InC 
+#    networks:
+#      - rabbitmq_network
+#      - postgres_network
+#
 volumes:
   pg_data:
+networks:
+  rabbitmq_network:
+    driver: bridge
+  postgres_network:
+    driver: bridge

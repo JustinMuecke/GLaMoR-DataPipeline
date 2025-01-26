@@ -52,9 +52,10 @@ def _find_prefixes(lines: List[str]):
     prefixes = []
     for line in lines: 
         if "Prefix: " in line: 
-            prefix = line.split(":")[1].lstrip(" ")+":"
-            prefixes.append(prefix)
-    prefixes.remove(":")
+            prefix = line.split(":")[1].lstrip(" ")
+            print(prefix)
+            if prefix != ":" and prefix != "": 
+                prefixes.append(prefix)
     return prefixes
 
 def _remove_prefixes(file_name):
@@ -66,10 +67,13 @@ def _remove_prefixes(file_name):
                 modified_lines = []
                 prefixes : List[str] = _find_prefixes(lines)
                 for line in lines: 
+                    if("Prefix:") in line: continue
                     for prefix in prefixes:
+                        line = line.replace(prefix+":", "")
                         line = line.replace(prefix, "")
+                        line = line.replace ("<http://" ,"")
+                        line = line.replace (">", "")
                     modified_lines.append(line)
-                
                 with open("/output/" + file_name, "w") as output:
                     output.writelines(modified_lines)
                 return True
@@ -85,7 +89,8 @@ def on_message(channel, method, properties, body):
     print(f"Processing {file_name}")
     if(file_name not in os.listdir("/output/")):
         cursor.execute("UPDATE prefix_removal SET status =%s WHERE file_name=%s", ("Processing", file_name))
-        db_connection.commit()
+        db_connection.commit() 
+        channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
         if(_remove_prefixes(file_name)):
         # Publish the processed message to the output queue
             channel.basic_publish(exchange="", routing_key=queue_output, body=file_name)
@@ -100,12 +105,7 @@ def on_message(channel, method, properties, body):
         else: 
             cursor.execute("UPDATE prefix_removal SET status =%s, error_message=%s WHERE file_name=%s", ("Coudlt Remove Prefixes","Failed", file_name))
             db_connection.commit()
-    else:
-        cursor.execute("INSERT INTO translation (file_name, status) VALUES (%s, %s)", (file_name, "Waiting")
-        db_connection.commit()
-        channel.basic_publish(exchange="", rounting_key=queue_output, body=file_name)
-        cursor.execute("UPDATE prefix_removal SET status=%s WHERE file_name=%s", ("Done", file_name))
-        db_connection.commit()
+
     # Acknowledge the message to RabbitMQ
     channel.basic_ack(delivery_tag=method.delivery_tag)
 
