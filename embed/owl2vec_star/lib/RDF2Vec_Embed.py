@@ -13,7 +13,7 @@ def construct_kg_walker(onto_file, walker_type, walk_depth):
     if onto_file.endswith('ttl') or onto_file.endswith('TTL'):
         g.parse(onto_file, format='turtle')
     else:
-        g.parse(onto_file)
+        g.parse(onto_file, format='xml', encoding="utf-8")
     kg = KnowledgeGraph()
     for (s, p, o) in g:
         s_v, o_v = Vertex(str(s)), Vertex(str(o))

@@ -2,11 +2,17 @@ FROM python:3.9
 
 WORKDIR /app
 
-COPY . /app
-
 RUN pip install pika
-RUN pip install owl2vec_star
 RUN pip install numpy
+RUN pip install rdflib
+RUN pip install pyparsing
+RUN pip install gensim
+RUN pip install scikit-learn
+RUN pip install nltk
+RUN pip install OWLready2
+
+
+COPY . /app
 
 ENV PYTHONUNBUFFERED=1
 

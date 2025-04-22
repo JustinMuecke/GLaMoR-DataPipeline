@@ -8,6 +8,11 @@ import os
 import numpy as np
 import traceback
 from typing import List, Dict
+import nltk
+import gc
+
+nltk.download("punkt_tab")
+
 
 rabbitmq_host ="rabbitmq"
 queue_input = "embed"
@@ -21,46 +26,46 @@ def _create_graph_embedding(embeddings):
     '''
     words = embeddings.key_to_index
     vectors = [embeddings[word] for word in words]
-    graph_embedding = np.mean(vectors, axis=0)
+    graph_embedding = np.array(vectors)
     return graph_embedding
 # %%
 
 def process_file(filename):
     """Processes a single file to extract its graph embedding."""
     directory_path = "/input_inconsistent/" if filename.split("_")[0] in PREFIXES else "/input_consistent/"
-    try:
-        name = filename.split(".")[0] + ".owl"
-
-        gensim_model = owl2vec_star.extract_owl2vec_model(
-            f"{directory_path}{name}", "./default.cfg", True, True, True
-        )
-        graph_embedding = _create_graph_embedding(gensim_model.wv)
-        return filename, graph_embedding
-    except Exception as exception:
-        traceback.print_exc()
-        return None
+    print(f"processing {directory_path} {filename}")
+    gensim_model = owl2vec_star.extract_owl2vec_model(
+        f"{directory_path}{filename}", "./default.cfg", True, True, True
+    )
+    graph_embedding = _create_graph_embedding(gensim_model.wv)
+    del gensim_model
+    gc.collect()
+    return filename, graph_embedding
 
 def on_message(channel, method, properties, body):
     try:
         file_name = body.decode()
-        if(file_name in os.listdir("/output/")): return
-        embedding = process_file(file_name)
-
-        with open(f"/output/{file_name}", "w") as f:
-            f.write(str(embedding))
-
+        if(file_name.split(".")[0]+".npy" not in os.listdir("/output/")): 
+            embedding = process_file(file_name)
+            if embedding:
+                output_path = f"/output/{file_name.rsplit('.', 1)[0]}.npy"
+                np.save(output_path, embedding[1])
         channel.basic_ack(delivery_tag=method.delivery_tag)
-    except:
-        traceback.print_exc()
+    except Exception as exception:
 
-
+        with open("/output/error_log.txt", "a", buffering=1) as f:
+            tb = traceback.extract_tb(exception.__traceback__)
+            error_file, line_number, func_name, _ = tb[-1]
+            log_message = f"{body.decode()}, {error_file}-{line_number}: {str(exception)}\n"
+            print(log_message)
+            f.write(log_message)
+            f.flush()
 
 
 def start_worker():
     """ Main worker function to consume messages """
     connection = None
     channel = None
-
     # Retry loop until RabbitMQ is available
     while connection is None:
         try:
@@ -83,4 +88,6 @@ def start_worker():
     
 
 if __name__ == "__main__":
+    with open("/output/error_log.txt", "w") as f:
+        pass
     start_worker()

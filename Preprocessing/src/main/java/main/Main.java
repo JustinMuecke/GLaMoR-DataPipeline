@@ -47,7 +47,6 @@ public class Main {
         for (OWLEntity entity : entities) {
             IRI iri = entity.getIRI();
             String iriString = iri.toString();
-            System.out.println(iriString);
             // Remove the local fragment (after last '/' or '#') to find base IRI
             int lastSlash = iriString.lastIndexOf('/');
             int lastHash = iriString.lastIndexOf('#');
@@ -72,12 +71,12 @@ public class Main {
         }
         if (ontology == null) return "";
         // Remove Annotation Axioms
-        System.out.println("Removing Annotations for " + file);
+
         removeAnnotationAxioms(ontology, manager);
-        System.out.println("Removing SKOS for " + file);
+
         removeSKOSAxioms(ontology, manager);
 
-        System.out.println("Saving " + file);
+        System.out.println("Saving: " + file.getName());
         ManchesterSyntaxDocumentFormat manchesterSyntaxDocumentFormat = new ManchesterSyntaxDocumentFormat();
         Optional<Set<String>> prefixes = findBaseIRI(ontology, manager);
         if(prefixes.isPresent()){
@@ -100,6 +99,7 @@ public class Main {
         } catch (OWLOntologyStorageException e) {
             System.err.println("Failed to save ontology: " + file.getName() + " due to " + e.getMessage());
         }
+        System.out.println("Saved File to Disk: " + file.getName());
         return file.getName();
     }
 
@@ -147,10 +147,9 @@ public class Main {
         DeliverCallback deliverCallback = (consumerTag, delivery) -> {
             //Add Database calls
             String fileName = new String(delivery.getBody(), StandardCharsets.UTF_8);
+            System.out.println("Processing Message: " + fileName);
             database.updateStatusInPreprocessDatabaseStart(fileName);
-            System.out.println(fileName +": Found Consistency");
             String newFile = preprocess(new File(inputDir1 +"/"+ fileName));
-            System.out.println(fileName +": newFile complete");
             finalChannel.basicPublish("", QUEUE_OUTPUT, null, newFile.getBytes(StandardCharsets.UTF_8));
             database.updateStatusInPreprocessDatabaseEnd(newFile);
             database.insertInPrefixRemovalDatabase(fileName);

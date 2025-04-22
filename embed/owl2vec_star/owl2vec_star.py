@@ -67,7 +67,7 @@ def __perform_ontology_embedding(config):
         
         projection = OntologyProjection(config['BASIC']['ontology_file'], reasoner=Reasoner.STRUCTURAL,
                                         only_taxonomy=tax_only,
-                                        bidirectional_taxonomy=True, include_literals=True, avoid_properties=set(),
+                                        bidirectional_taxonomy=True, include_literals=False, avoid_properties=set(),
                                         additional_preferred_labels_annotations=set(),
                                         additional_synonyms_annotations=set(),
                                         memory_reasoner='13351')
@@ -110,52 +110,52 @@ def __perform_ontology_embedding(config):
     #                        2) None label annotations as sentences of the literal document
     uri_label, uri_to_labels, annotations = dict(), dict(), list()
 
-    if 'pre_annotation_file' in config['DOCUMENT']:
-        with open(config['DOCUMENT']['pre_annotation_file'], encoding="utf-8") as f:
-            for line in f.readlines():
-                tmp = line.strip().split()
-                if tmp[1] == 'http://www.w3.org/2000/01/rdf-schema#label':
-                    uri_label[tmp[0]] = pre_process_words(tmp[2:])
-                else:
-                    annotations.append([tmp[0]] + tmp[2:])
-
-    else:
-        logging.info('Extract annotations ...')
-        projection.indexAnnotations()
-        for e in entities:
-            if e in projection.entityToPreferredLabels and len(projection.entityToPreferredLabels[e]) > 0:
-                label = list(projection.entityToPreferredLabels[e])[0]
-                #Keeps only one
-                uri_label[e] = pre_process_words(words=label.split())
-
-
-
-                ##Populates dictionary with all labels per entity
-                for label in projection.getPreferredLabelsForEntity(e):
-                    #print("Preferred: " + label)
-                    if e not in uri_to_labels:
-                        uri_to_labels[e]=set()
-                    #We add a list of words in the set
-                    #print(pre_process_words(words=label.split()))
-                    #print(uri_to_labels[e])
-                    uri_to_labels[e].add(tuple(pre_process_words(words=label.split())))
-		
-                if e in projection.entityToSynonyms and len(projection.entityToSynonyms[e]) > 0:
-                    for label in projection.getSynonymLabelsForEntity(e):
-                        #print("Syn: " + label)
-                        if e not in uri_to_labels:
-                            uri_to_labels[e]=set()
-                        #We add a list of words in the set
-                        uri_to_labels[e].add(tuple(pre_process_words(words=label.split())))
-                    
-        for e in entities:
-            if e in projection.entityToAllLexicalLabels:
-                for v in projection.entityToAllLexicalLabels[e]:
-                    if (v is not None) and \
-                        (not (e in projection.entityToPreferredLabels and v in projection.entityToPreferredLabels[e])):
-                        annotation = [e] + v.split()
-                        annotations.append(annotation)
-
+#    if 'pre_annotation_file' in config['DOCUMENT']:
+#        with open(config['DOCUMENT']['pre_annotation_file'], encoding="utf-8") as f:#
+#            for line in f.readlines():
+#                tmp = line.strip().split()
+#                if tmp[1] == 'http://www.w3.org/2000/01/rdf-schema#label':
+#                    uri_label[tmp[0]] = pre_process_words(tmp[2:])
+#                else:
+#                    annotations.append([tmp[0]] + tmp[2:])
+#
+#    else:
+#        logging.info('Extract annotations ...')
+#        projection.indexAnnotations()
+#        for e in entities:
+#            if e in projection.entityToPreferredLabels and len(projection.entityToPreferredLabels[e]) > 0:
+#                label = list(projection.entityToPreferredLabels[e])[0]
+#                #Keeps only one
+#                uri_label[e] = pre_process_words(words=label.split())
+#
+#
+#
+#                ##Populates dictionary with all labels per entity
+#                for label in projection.getPreferredLabelsForEntity(e):
+#                    #print("Preferred: " + label)
+#                    if e not in uri_to_labels:
+#                        uri_to_labels[e]=set()
+#                    #We add a list of words in the set
+#                    #print(pre_process_words(words=label.split()))
+#                    #print(uri_to_labels[e])
+#                    uri_to_labels[e].add(tuple(pre_process_words(words=label.split())))
+#		
+#                if e in projection.entityToSynonyms and len(projection.entityToSynonyms[e]) > 0:
+#                    for label in projection.getSynonymLabelsForEntity(e):
+#                        #print("Syn: " + label)
+#                        if e not in uri_to_labels:
+#                            uri_to_labels[e]=set()
+#                        #We add a list of words in the set
+#                        uri_to_labels[e].add(tuple(pre_process_words(words=label.split())))
+#                    
+#        for e in entities:
+#            if e in projection.entityToAllLexicalLabels:
+#                for v in projection.entityToAllLexicalLabels[e]:
+#                    if (v is not None) and \
+#                        (not (e in projection.entityToPreferredLabels and v in projection.entityToPreferredLabels[e])):
+#                        annotation = [e] + v.split()
+#                        annotations.append(annotation)
+#
  #       with open(os.path.join(config['DOCUMENT']['cache_dir'], 'annotations.txt'), 'w', encoding="utf-8") as f:
  #           for e in projection.entityToPreferredLabels:
  #               for v in projection.entityToPreferredLabels[e]:
@@ -186,7 +186,10 @@ def __perform_ontology_embedding(config):
         if item in uri_label:
             return uri_label[item]
         elif item.startswith('http://www.w3.org'):
-            return [item.split('#')[1].lower()]
+            if '#' in item:
+                return [item.split('#')[1].lower()]
+            else:
+                return [item.rsplit('/', 1)[-1].lower()]
         elif item.startswith('http://'):
             return URI_parse(uri=item)
         else:
