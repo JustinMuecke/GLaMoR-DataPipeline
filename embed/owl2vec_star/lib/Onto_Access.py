@@ -316,6 +316,8 @@ class OntologyAccess(object):
         #query_owlready()
 
         #results = self.graph.query("""SELECT ?s ?p ?o WHERE { ?s ?p ?o . }""")
+        if not hasattr(self, "graph"):
+             self.loadOntology()
         results = self.graph.query(query)
 
 

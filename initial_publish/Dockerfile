@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Install necessary dependencies
 RUN pip install pika psycopg2
-
+RUN pip install pandas
 # Copy your Python script into the container
 COPY initial_publish.py /app/
 

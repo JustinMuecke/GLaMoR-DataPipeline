@@ -833,7 +833,7 @@ class OntologyProjection(object):
                         if (not self.only_taxonomy) and (not cls_exp.property.iri in self.avoid_properties):
                             self.__extractTriplesForRestriction__(cls, cls_exp)
 
-                    except AttributeError:
+                    except:
                         pass  # Not supported restriction
 
 
